@@ -10,6 +10,8 @@ void loop() {}
 #include "esp32-hal-gpio.h"
 #include "hal/gpio_hal.h"
 #include "hal/gpio_types.h"
+#include "soc/gpio_struct.h"
+#include "hal/gpio_ll.h"
 USBHIDMouse Mouse;
 
 /* ================================================================================
@@ -103,10 +105,10 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(INT1_PIN), ISR_HANDLER_Y, CHANGE);
   attachInterrupt(digitalPinToInterrupt(INT2_PIN), ISR_HANDLER_X, CHANGE);
   attachInterrupt(digitalPinToInterrupt(INT3_PIN), ISR_HANDLER_X, CHANGE);
-  pinMode(leftButton.pin, INPUT_PULLUP);
-  pinMode(middleButton.pin, INPUT_PULLUP);
-  pinMode(rightButton.pin, INPUT_PULLUP);
-  pinMode(fnButton.pin, INPUT_PULLUP);
+  pinMode(leftButton.pin, INPUT);
+  pinMode(middleButton.pin, INPUT);
+  pinMode(rightButton.pin, INPUT);
+  pinMode(fnButton.pin, INPUT);
 
   Serial.begin(115200);
 
@@ -169,14 +171,14 @@ void ISR_HANDLER_X() {                  // wait for a second
   // X is pin 2, 3
   // .index = 0b0000
   // where first two are the last a, b values and last 2 are current
-  uint8_t ab = gpio_get_level((gpio_num_t)6) << 1 | gpio_get_level((gpio_num_t)5) << 0;
+  uint8_t ab = gpio_ll_get_level(&GPIO, GPIO_NUM_6) << 1 | gpio_ll_get_level(&GPIO, GPIO_NUM_5) << 0;
   xAxis.index = (xAxis.index << 2) | (ab >> 0);
   xAxis.coordinate += lookupTable[xAxis.index & 0b00001111];
 }
 
 void ISR_HANDLER_Y() {
   // Build the LUT index from previous and new data
-  uint8_t ab = gpio_get_level((gpio_num_t)43) << 1 | gpio_get_level((gpio_num_t)44) << 0;
+  uint8_t ab = gpio_ll_get_level(&GPIO, GPIO_NUM_43) << 1 | gpio_ll_get_level(&GPIO, GPIO_NUM_44) << 0;
   yAxis.index = (yAxis.index << 2) | (ab  >> 0);
   yAxis.coordinate += lookupTable[yAxis.index & 0b00001111];
 }
@@ -190,7 +192,7 @@ void ReadButton(BUTTON_& button) {
   // Get current switch state
   switchState = digitalRead(button.pin);
 
-  if (switchState == HIGH) {
+  if (switchState == LOW) {
     // if the mouse is not pressed, press it:
     if (!Mouse.isPressed(button.button)) {
       Mouse.press(button.button);
