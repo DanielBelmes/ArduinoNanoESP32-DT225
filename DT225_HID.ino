@@ -59,7 +59,7 @@ typedef struct ENCODER_ {
 } ENCODER_;
 
 typedef struct BUTTON_ {
-  int state;
+  boolean state;
   boolean needUpdate;
   uint8_t button;
   uint8_t fnButton;
@@ -84,9 +84,9 @@ volatile int Acceleration_Y = 3;
 // Global variables
 // =================================================================================
 BUTTON_ leftButton = { false, false, MOUSE_LEFT, MOUSE_BACKWARD, 11, 0 };
-BUTTON_ middleButton = { false, false, MOUSE_MIDDLE, MOUSE_LEFT, 9, 0 };
+BUTTON_ middleButton = { false, false, MOUSE_MIDDLE, 0, 9, 0 };
 BUTTON_ rightButton = { false, false, MOUSE_RIGHT, MOUSE_FORWARD, 12, 0 };
-BUTTON_ fnButton = { false, false, MOUSE_LEFT,MOUSE_LEFT, 10, 0 };
+BUTTON_ fnButton = { false, false, 0,0, 10, 0 };
 #define INT0_PIN  0
 #define INT1_PIN  1
 #define INT2_PIN  2
@@ -105,10 +105,10 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(INT1_PIN), ISR_HANDLER_Y, CHANGE);
   attachInterrupt(digitalPinToInterrupt(INT2_PIN), ISR_HANDLER_X, CHANGE);
   attachInterrupt(digitalPinToInterrupt(INT3_PIN), ISR_HANDLER_X, CHANGE);
-  pinMode(leftButton.pin, INPUT);
-  pinMode(middleButton.pin, INPUT);
-  pinMode(rightButton.pin, INPUT);
-  pinMode(fnButton.pin, INPUT);
+  pinMode(leftButton.pin, INPUT_PULLDOWN);
+  pinMode(middleButton.pin, INPUT_PULLDOWN);
+  pinMode(rightButton.pin, INPUT_PULLDOWN);
+  pinMode(fnButton.pin, INPUT_PULLDOWN);
 
   Serial.begin(115200);
 
@@ -158,7 +158,7 @@ void loop() {
   // ---------------------------------
   // Scroll mouse button state update
   // ---------------------------------
-  //ReadButton(fnButton);
+  ReadButton(fnButton);
 
   delay(3);
 }
@@ -196,13 +196,15 @@ void ReadButton(BUTTON_& button) {
     // if the mouse is not pressed, press it:
     if (!Mouse.isPressed(button.button)) {
       Mouse.press(button.button);
+      button.state = true;
     }
   }
   // else the mouse button is not pressed:
   else {
     // if the mouse is pressed, release it:
-    if (Mouse.isPressed(button.button)) {
+    if (Mouse.isPressed(button.button) || button.state) {
       Mouse.release(button.button);
+      button.state = false;
     }
   }
 }
