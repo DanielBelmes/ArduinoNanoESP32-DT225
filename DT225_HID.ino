@@ -12,6 +12,7 @@ void loop() {}
 #include "hal/gpio_types.h"
 #include "soc/gpio_struct.h"
 #include "hal/gpio_ll.h"
+#include "hal/misc.h"
 USBHIDMouse Mouse;
 
 /* ================================================================================
@@ -77,8 +78,8 @@ const int8_t lookupTable[] = { 0, 1, -1, 0, -1, 0, 0, 1, 1, 0, 0, -1, 0, -1, 1, 
 // =================================================================================
 volatile ENCODER_ xAxis = { 0, 0 };
 volatile ENCODER_ yAxis = { 0, 0 };
-volatile int Acceleration_X = 3;
-volatile int Acceleration_Y = 3;
+//volatile int Acceleration_X = 1;
+//volatile int Acceleration_Y = 1;
 
 // =================================================================================
 // Global variables
@@ -101,10 +102,10 @@ void setup() {
   pinMode(INT1_PIN, INPUT);
   pinMode(INT2_PIN, INPUT);
   pinMode(INT3_PIN, INPUT);
-  attachInterrupt(digitalPinToInterrupt(INT0_PIN), ISR_HANDLER_Y, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(INT1_PIN), ISR_HANDLER_Y, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(INT2_PIN), ISR_HANDLER_X, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(INT3_PIN), ISR_HANDLER_X, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(INT0_PIN), ISR_HANDLER_Y, RISING);
+  attachInterrupt(digitalPinToInterrupt(INT1_PIN), ISR_HANDLER_Y, RISING);
+  attachInterrupt(digitalPinToInterrupt(INT2_PIN), ISR_HANDLER_X, RISING);
+  attachInterrupt(digitalPinToInterrupt(INT3_PIN), ISR_HANDLER_X, RISING);
   pinMode(leftButton.pin, INPUT_PULLDOWN);
   pinMode(middleButton.pin, INPUT_PULLDOWN);
   pinMode(rightButton.pin, INPUT_PULLDOWN);
@@ -131,7 +132,7 @@ void loop() {
   } else {
     // Update mouse coordinates
     if (xAxis.coordinate != 0 || yAxis.coordinate != 0) {
-      Mouse.move(xAxis.coordinate * Acceleration_X, yAxis.coordinate * Acceleration_Y, 0);
+      Mouse.move(xAxis.coordinate, yAxis.coordinate, 0);
       xAxis.coordinate = 0;
       yAxis.coordinate = 0;
     }
@@ -141,19 +142,16 @@ void loop() {
   // Left mouse button state update
   // ---------------------------------
   ReadButton(leftButton); 
-  //UpdateButton(leftButton);
 
   // ---------------------------------
   // Right mouse button state update
   // ---------------------------------
   ReadButton(rightButton);
-  //UpdateButton(rightButton);
 
   // ---------------------------------
   // Middle mouse button state update
   // ---------------------------------
   ReadButton(middleButton);
-  //UpdateButton(middleButton);
 
   // ---------------------------------
   // Scroll mouse button state update
@@ -163,24 +161,33 @@ void loop() {
   delay(3);
 }
 
+static inline int gpio_ll_get_bitmask(gpio_dev_t *hw, uint32_t gpio_mask, boolean greaterThan32)
+{
+    if (!greaterThan32) {
+        return hw->in & gpio_mask;
+    } else {
+        return HAL_FORCE_READ_U32_REG_FIELD(hw->in1, data) & gpio_mask;
+    }
+}
+
 // =================================================================================
 // Interrupt handlers
 // =================================================================================
-void ISR_HANDLER_X() {                  // wait for a second
+void ISR_HANDLER_X() {
   // Build the LUT index from previous and new data
   // X is pin 2, 3
   // .index = 0b0000
   // where first two are the last a, b values and last 2 are current
-  uint8_t ab = gpio_ll_get_level(&GPIO, GPIO_NUM_6) << 1 | gpio_ll_get_level(&GPIO, GPIO_NUM_5) << 0;
-  xAxis.index = (xAxis.index << 2) | (ab >> 0);
+  uint8_t ab = gpio_ll_get_bitmask(&GPIO, (1ULL << 6) | (1ULL << 5), false) >> 5; //Read Input Matrix <GPIO32 and mask out only GPIO5,6 as they correspond to tx0 and rx0
+  xAxis.index = (xAxis.index << 2) | ab;
   xAxis.coordinate += lookupTable[xAxis.index & 0b00001111];
 }
 
 void ISR_HANDLER_Y() {
   // Build the LUT index from previous and new data
-  uint8_t ab = gpio_ll_get_level(&GPIO, GPIO_NUM_43) << 1 | gpio_ll_get_level(&GPIO, GPIO_NUM_44) << 0;
-  yAxis.index = (yAxis.index << 2) | (ab  >> 0);
-  yAxis.coordinate += lookupTable[yAxis.index & 0b00001111];
+  uint8_t ab = gpio_ll_get_bitmask(&GPIO, (1ULL << GPIO_NUM_44-32) | (1ULL << GPIO_NUM_43-32), true) >> GPIO_NUM_43-32; //Read Input Matrix>GPIO32 and mask out only GPIO43,44 as they correspond to Pin2,3
+  yAxis.index = (yAxis.index << 2) | ab;
+  yAxis.coordinate -= lookupTable[yAxis.index & 0b00001111]; //had to invert Y because I have the wiring backwards :(
 }
 
 // =================================================================================
