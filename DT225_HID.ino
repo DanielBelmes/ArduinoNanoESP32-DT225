@@ -16,31 +16,27 @@ void loop() {}
 USBHIDMouse Mouse;
 
 /* ================================================================================
-   Original code by GuilleAcoustic
+   Original code by GuilleAcoustic and Rocco16v
    ================================================================================
-   Modifier: Rocco16v 
-   Date    : 2025-01-27
-   Revision: V1.4
+   Modifier: DanielBelmes 
+   Date    : 2025-11-25
+   Revision: V1.5
    Purpose : Opto-mechanical trackball firmware for CH Products DT225. This firmware 
               has been written with the intent to override the PIC microcontroller in
-              the device. Provides access to the 4th button as a function button thus
-              creating an additional "layer" for the 3 main buttons. It adds acceleration 
-              to allow usage on high res screens while keeping precision on small movements.
-              The original Arduino Mouse library (Mouse.h and Mouse.cpp) have been modified
-              to allow up to 8 buttons and horizontal scrolling.
+              the device.
    --------------------------------------------------------------------------------
-   Wiring informations: Sparkfun Pro Micro (Atmega32u4)
+   Wiring informations: Ardunio Nano ESP32
    --------------------------------------------------------------------------------
      - Gnd                          |   Pin: Gnd [GND]
      - Vcc (+5V)                    |   Pin: Vcc [Vcc]
-     - X axis encoder / channel A   |   Pin: PD3 [TXO]   (INT0)
-     - X axis encoder / channel B   |   Pin: PD2 [RXI]   (INT1)
-     - Y axis encoder / channel A   |   Pin: PD0 [3]     (INT2)
-     - Y axis encoder / channel B   |   Pin: PD1 [2]     (INT3)
-     - Switch 1                     |   Pin: PB3 [9]
-     - Switch 2                     |   Pin: PB2 [10]
-     - Switch 3                     |   Pin: PB1 [11]
-     - Switch 4                     |   Pin: PB4 [12]
+     - X axis encoder / channel A   |   Pin: GPIO43 [TXO]   (INT0)
+     - X axis encoder / channel B   |   Pin: GPIO44 [RX0]   (INT1)
+     - Y axis encoder / channel A   |   Pin: GPIO6 [3]     (INT2)
+     - Y axis encoder / channel B   |   Pin: GPIO5 [2]     (INT3)
+     - Switch 1                     |   Pin: GPIO18 [9]
+     - Switch 2                     |   Pin: GPIO21 [10]
+     - Switch 3                     |   Pin: GPIO38 [11]
+     - Switch 4                     |   Pin: GPIO47 [12]
    ================================================================================ */
 
 // =================================================================================
@@ -178,14 +174,14 @@ void ISR_HANDLER_X() {
   // X is pin 2, 3
   // .index = 0b0000
   // where first two are the last a, b values and last 2 are current
-  uint8_t ab = gpio_ll_get_bitmask(&GPIO, (1ULL << 6) | (1ULL << 5), false) >> 5; //Read Input Matrix <GPIO32 and mask out only GPIO5,6 as they correspond to tx0 and rx0
+  uint8_t ab = gpio_ll_get_bitmask(&GPIO, (1ULL << 6) | (1ULL << 5), false) >> 5; //Read Input Matrix <GPIO32 and mask out only GPIO5,6 as they correspond to 2 and 3
   xAxis.index = (xAxis.index << 2) | ab;
   xAxis.coordinate += lookupTable[xAxis.index & 0b00001111];
 }
 
 void ISR_HANDLER_Y() {
   // Build the LUT index from previous and new data
-  uint8_t ab = gpio_ll_get_bitmask(&GPIO, (1ULL << GPIO_NUM_44-32) | (1ULL << GPIO_NUM_43-32), true) >> GPIO_NUM_43-32; //Read Input Matrix>GPIO32 and mask out only GPIO43,44 as they correspond to Pin2,3
+  uint8_t ab = gpio_ll_get_bitmask(&GPIO, (1ULL << GPIO_NUM_44-32) | (1ULL << GPIO_NUM_43-32), true) >> GPIO_NUM_43-32; //Read Input Matrix>GPIO32 and mask out only GPIO43,44 as they correspond to tx0 and rx0
   yAxis.index = (yAxis.index << 2) | ab;
   yAxis.coordinate -= lookupTable[yAxis.index & 0b00001111]; //had to invert Y because I have the wiring backwards :(
 }
